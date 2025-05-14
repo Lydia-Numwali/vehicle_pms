@@ -231,6 +231,7 @@ router.delete('/:id', authenticate, deleteRequest);
  *                     vehicle_type: { type: string, example: car }
  *                     status: { type: string, example: unavailable }
  *                     location: { type: string, example: north }
+ *                 emailStatus: { type: string, example: sent }
  *       400:
  *         description: No compatible slots available
  *       401:
@@ -259,6 +260,18 @@ router.put('/:id/approve', authenticate, isAdmin, approveRequest);
  *         schema:
  *           type: integer
  *         description: Slot request ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 example: No compatible slots available
  *     responses:
  *       200:
  *         description: Slot request rejected successfully
@@ -267,11 +280,18 @@ router.put('/:id/approve', authenticate, isAdmin, approveRequest);
  *             schema:
  *               type: object
  *               properties:
- *                 id: { type: integer, example: 1 }
- *                 user_id: { type: integer, example: 1 }
- *                 vehicle_id: { type: integer, example: 1 }
- *                 request_status: { type: string, example: rejected }
- *                 requested_at: { type: string, format: date-time }
+ *                 message: { type: string, example: Request rejected }
+ *                 request:
+ *                   type: object
+ *                   properties:
+ *                     id: { type: integer, example: 1 }
+ *                     user_id: { type: integer, example: 1 }
+ *                     vehicle_id: { type: integer, example: 1 }
+ *                     request_status: { type: string, example: rejected }
+ *                     requested_at: { type: string, format: date-time }
+ *                 emailStatus: { type: string, example: sent }
+ *       400:
+ *         description: Rejection reason is required
  *       401:
  *         description: Unauthorized, invalid or missing token
  *       403:

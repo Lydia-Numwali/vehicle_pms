@@ -1,6 +1,8 @@
-# Vehicle Parking Management System Backend
+# Vehicle Parking Management System
 
-## Setup Instructions
+## VPMS Backend
+
+### Setup Instructions
 
 1. **Clone the Repository**:
    ```bash
@@ -81,7 +83,7 @@
 6. **Access Swagger Documentation**:
    - Open `http://localhost:5000/api-docs` in your browser to view the API documentation.
 
-## API Endpoints
+### API Endpoints
 
 - **Auth**:
   - `POST /api/auth/register`: Register a user.
@@ -113,9 +115,12 @@
   - `PUT /api/slot-requests/:id/approve`: Approve request (admin).
   - `PUT /api/slot-requests/:id/reject`: Reject request (admin).
 
-## Notes
+### Notes
 - Ensure PostgreSQL is running and the database is configured.
 - Nodemailer requires valid SMTP credentials (e.g., Gmail with app password).
 - Pagination and search are implemented for GET endpoints using `page`, `limit`, and `search` query parameters.
 - All actions are logged in the `logs` table.
 - Swagger documentation is available at `/api-docs`.
+
+
+## VPMS Backend

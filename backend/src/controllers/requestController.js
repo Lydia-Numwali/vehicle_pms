@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const { sendApprovalEmail } = require('../utils/email');
+const { sendApprovalEmail, sendRejectionEmail } = require('../utils/email');
 
 const createRequest = async (req, res) => {
   const userId = req.user.id;
@@ -23,7 +23,8 @@ const createRequest = async (req, res) => {
     ]);
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Create request error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 };
 
@@ -76,13 +77,12 @@ const getRequests = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Get requests error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 };
 
-const updateRequest = async (
-
- req, res) => {
+const updateRequest = async (req, res) => {
   const userId = req.user.id;
   const { id } = req.params;
   const { vehicle_id } = req.body;
@@ -108,7 +108,8 @@ const updateRequest = async (
     ]);
     res.json(result.rows[0]);
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Update request error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 };
 
@@ -129,68 +130,143 @@ const deleteRequest = async (req, res) => {
     ]);
     res.json({ message: 'Request deleted' });
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Delete request error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 };
 
 const approveRequest = async (req, res) => {
   const userId = req.user.id;
   const { id } = req.params;
+
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
   try {
     const requestResult = await pool.query(
-      'SELECT sr.*, v.vehicle_type, v.size, v.plate_number, u.email FROM slot_requests sr JOIN vehicles v ON sr.vehicle_id = v.id JOIN users u ON sr.user_id = u.id WHERE sr.id = $1 AND sr.request_status = $2',
+      'SELECT sr.*, v.vehicle_type, v.size, v.plate_number, u.email ' +
+      'FROM slot_requests sr ' +
+      'JOIN vehicles v ON sr.vehicle_id = v.id ' +
+      'JOIN users u ON sr.user_id = u.id ' +
+      'WHERE sr.id = $1 AND sr.request_status = $2',
       [id, 'pending']
     );
+
     if (requestResult.rowCount === 0) {
       return res.status(404).json({ error: 'Request not found or already processed' });
     }
+
     const { vehicle_type, size, plate_number, user_id, email } = requestResult.rows[0];
 
     const slotResult = await pool.query(
       'SELECT * FROM parking_slots WHERE vehicle_type = $1 AND size = $2 AND status = $3 LIMIT 1',
       [vehicle_type, size, 'available']
     );
+
     if (slotResult.rowCount === 0) {
       return res.status(400).json({ error: 'No compatible slots available' });
     }
+
     const slot = slotResult.rows[0];
 
+    await pool.query('BEGIN');
+
     await pool.query(
-      'UPDATE slot_requests SET request_status = $1, slot_id = $2, slot_number = $3, approved_at = CURRENT_TIMESTAMP WHERE id = $4',
+      'UPDATE slot_requests ' +
+      'SET request_status = $1, slot_id = $2, slot_number = $3, approved_at = CURRENT_TIMESTAMP ' +
+      'WHERE id = $4',
       ['approved', slot.id, slot.slot_number, id]
     );
-    await pool.query('UPDATE parking_slots SET status = $1 WHERE id = $2', ['unavailable', slot.id]);
 
-    await sendApprovalEmail(email, slot.slot_number, { plate_number });
+    await pool.query(
+      'UPDATE parking_slots SET status = $1 WHERE id = $2',
+      ['unavailable', slot.id]
+    );
+
+    await pool.query('COMMIT');
+
+    let emailStatus = 'sent';
+    try {
+      console.log('Attempting to send approval email to:', email);
+      await sendApprovalEmail(email, slot.slot_number, { plate_number }, slot.location);
+    } catch (emailError) {
+      console.error('Email sending error:', emailError);
+      emailStatus = 'failed';
+    }
 
     await pool.query('INSERT INTO logs (user_id, action) VALUES ($1, $2)', [
       userId,
-      `Slot request ${id} approved, assigned slot ${slot.slot_number}`,
+      `Slot request ${id} approved, assigned slot ${slot.slot_number}, email ${emailStatus}`,
     ]);
-    res.json({ message: 'Request approved', slot });
+
+    res.json({ message: 'Request approved', slot, emailStatus });
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    await pool.query('ROLLBACK');
+    console.error('Approve request error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 };
 
 const rejectRequest = async (req, res) => {
   const userId = req.user.id;
   const { id } = req.params;
+  const { reason } = req.body; 
+
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  if (!reason) {
+    return res.status(400).json({ error: 'Rejection reason is required' });
+  }
+
   try {
+    const requestResult = await pool.query(
+      'SELECT sr.*, v.plate_number, v.vehicle_type, v.size, u.email ' +
+      'FROM slot_requests sr ' +
+      'JOIN vehicles v ON sr.vehicle_id = v.id ' +
+      'JOIN users u ON sr.user_id = u.id ' +
+      'WHERE sr.id = $1 AND sr.request_status = $2',
+      [id, 'pending']
+    );
+
+    if (requestResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Request not found or already processed' });
+    }
+
+    const { plate_number, vehicle_type, size, email } = requestResult.rows[0];
+
+    const slotResult = await pool.query(
+      'SELECT location FROM parking_slots WHERE vehicle_type = $1 AND size = $2 LIMIT 1',
+      [vehicle_type, size]
+    );
+
+    const slotLocation = slotResult.rowCount > 0 ? slotResult.rows[0].location : 'unknown';
+
     const result = await pool.query(
       'UPDATE slot_requests SET request_status = $1 WHERE id = $2 AND request_status = $3 RETURNING *',
       ['rejected', id, 'pending']
     );
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Request not found or already processed' });
+
+    let emailStatus = 'sent';
+    try {
+      console.log('Attempting to send rejection email to:', email);
+      await sendRejectionEmail(email, { plate_number }, slotLocation, reason);
+    } catch (emailError) {
+      console.error('Email sending error:', emailError);
+      emailStatus = 'failed';
     }
+
     await pool.query('INSERT INTO logs (user_id, action) VALUES ($1, $2)', [
       userId,
-      `Slot request ${id} rejected`,
+      `Slot request ${id} rejected with reason: ${reason}, email ${emailStatus}`,
     ]);
-    res.json(result.rows[0]);
+
+    res.json({ message: 'Request rejected', request: result.rows[0], emailStatus });
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Reject request error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 };
 
