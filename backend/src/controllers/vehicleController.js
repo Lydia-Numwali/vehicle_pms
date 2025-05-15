@@ -20,20 +20,53 @@ const createVehicle = async (req, res) => {
 
 const getVehicles = async (req, res) => {
   const userId = req.user.id;
+  const isAdmin = req.user.role === 'admin';
   const { page = 1, limit = 10, search = '' } = req.query;
   const offset = (page - 1) * limit;
   try {
     const searchQuery = `%${search}%`;
-    const countResult = await pool.query(
-      'SELECT COUNT(*) FROM vehicles WHERE user_id = $1 AND (plate_number ILIKE $2 OR vehicle_type ILIKE $2)',
-      [userId, searchQuery]
-    );
+    let query, countQuery, params;
+
+    if (isAdmin) {
+      // Admins see all vehicles
+      countQuery = `
+        SELECT COUNT(*) 
+        FROM vehicles 
+        WHERE plate_number ILIKE $1 OR vehicle_type ILIKE $1 OR CAST(id AS TEXT) ILIKE $1
+      `;
+      query = `
+        SELECT v.*, 
+               (SELECT request_status 
+                FROM slot_requests 
+                WHERE vehicle_id = v.id AND request_status = 'approved' 
+                LIMIT 1) AS approval_status
+        FROM vehicles v
+        WHERE plate_number ILIKE $1 OR vehicle_type ILIKE $1 OR CAST(id AS TEXT) ILIKE $1
+        ORDER BY id
+        LIMIT $2 OFFSET $3
+      `;
+      params = [searchQuery, limit, offset];
+    } else {
+      // Regular users see only their vehicles
+      countQuery = `
+        SELECT COUNT(*) 
+        FROM vehicles 
+        WHERE user_id = $1 AND (plate_number ILIKE $2 OR vehicle_type ILIKE $2)
+      `;
+      query = `
+        SELECT * 
+        FROM vehicles 
+        WHERE user_id = $1 AND (plate_number ILIKE $2 OR vehicle_type ILIKE $2)
+        ORDER BY id
+        LIMIT $3 OFFSET $4
+      `;
+      params = [userId, searchQuery, limit, offset];
+    }
+
+    const countResult = await pool.query(countQuery, isAdmin ? [searchQuery] : [userId, searchQuery]);
     const totalItems = parseInt(countResult.rows[0].count);
 
-    const result = await pool.query(
-      'SELECT * FROM vehicles WHERE user_id = $1 AND (plate_number ILIKE $2 OR vehicle_type ILIKE $2) ORDER BY id LIMIT $3 OFFSET $4',
-      [userId, searchQuery, limit, offset]
-    );
+    const result = await pool.query(query, params);
 
     await pool.query('INSERT INTO logs (user_id, action) VALUES ($1, $2)', [
       userId,
@@ -49,6 +82,44 @@ const getVehicles = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+const getVehicleById = async (req, res) => {
+  const { id } = req.params;
+  const isAdmin = req.user.role === 'admin';
+  const userId = req.user.id;
+  try {
+    let query = `
+      SELECT v.*, 
+             (SELECT request_status 
+              FROM slot_requests 
+              WHERE vehicle_id = v.id AND request_status = 'approved' 
+              LIMIT 1) AS approval_status
+      FROM vehicles v
+      WHERE v.id = $1
+    `;
+    const params = [id];
+
+    if (!isAdmin) {
+      query += ' AND v.user_id = $2';
+      params.push(userId);
+    }
+
+    const result = await pool.query(query, params);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+
+    await pool.query('INSERT INTO logs (user_id, action) VALUES ($1, $2)', [
+      userId,
+      `Vehicle ID ${id} viewed`,
+    ]);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -77,12 +148,18 @@ const updateVehicle = async (req, res) => {
 
 const deleteVehicle = async (req, res) => {
   const userId = req.user.id;
+  const isAdmin = req.user.role === 'admin';
   const { id } = req.params;
   try {
-    const result = await pool.query(
-      'DELETE FROM vehicles WHERE id = $1 AND user_id = $2 RETURNING plate_number',
-      [id, userId]
-    );
+    let query = 'DELETE FROM vehicles WHERE id = $1';
+    const params = [id];
+
+    if (!isAdmin) {
+      query += ' AND user_id = $2';
+      params.push(userId);
+    }
+
+    const result = await pool.query(query + ' RETURNING plate_number', params);
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Vehicle not found' });
     }
@@ -92,8 +169,9 @@ const deleteVehicle = async (req, res) => {
     ]);
     res.json({ message: 'Vehicle deleted' });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Server error' });
   }
 };
 
-module.exports ={ createVehicle, getVehicles, updateVehicle, deleteVehicle}
+module.exports = { createVehicle, getVehicles, getVehicleById, updateVehicle, deleteVehicle };

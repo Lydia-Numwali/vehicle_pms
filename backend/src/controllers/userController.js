@@ -69,7 +69,7 @@ const getUsers = async (req, res) => {
     const totalItems = parseInt(countResult.rows[0].count);
 
     const result = await pool.query(
-      'SELECT id, name, email, role FROM users WHERE name ILIKE $1 OR email ILIKE $1 ORDER BY id LIMIT $2 OFFSET $3',
+      'SELECT id, name, email, role, is_verified FROM users WHERE name ILIKE $1 OR email ILIKE $1 ORDER BY id LIMIT $2 OFFSET $3',
       [searchQuery, limit, offset]
     );
 
