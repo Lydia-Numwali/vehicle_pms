@@ -1,6 +1,5 @@
-// src/routes/authRoutes.js
 const express = require('express');
-const { register, login } = require('../controllers/authController');
+const { register, login, verifyOtp, resendOtp } = require('../controllers/authController');
 
 const router = express.Router();
 
@@ -8,7 +7,7 @@ const router = express.Router();
  * @swagger
  * /api/auth/register:
  *   post:
- *     summary: Register a new user
+ *     summary: Register a new user with OTP verification
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -16,42 +15,40 @@ const router = express.Router();
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - name
- *               - email
- *               - password
  *             properties:
  *               name:
  *                 type: string
  *                 example: John Doe
  *               email:
  *                 type: string
- *                 example: john@example.com
+ *                 example: user@example.com
  *               password:
  *                 type: string
- *                 example: password123
+ *                 example: Password123
  *     responses:
  *       201:
- *         description: User registered successfully
+ *         description: User registered, OTP sent to email
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 id: { type: integer }
- *                 name: { type: string }
- *                 email: { type: string }
- *                 role: { type: string }
+ *                 message:
+ *                   type: string
+ *                 userId:
+ *                   type: integer
  *       400:
- *         description: Email already exists
+ *         description: Invalid input or email exists
+ *       500:
+ *         description: Server error
  */
 router.post('/register', register);
 
 /**
  * @swagger
- * /api/auth/login:
+ * /api/auth/verify-otp:
  *   post:
- *     summary: Login a user and return JWT
+ *     summary: Verify OTP for user registration
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -59,16 +56,68 @@ router.post('/register', register);
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - email
- *               - password
+ *             properties:
+ *               userId:
+ *                 type: integer
+ *                 example: 1
+ *               otpCode:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: OTP verified, user registration completed
+ *       400:
+ *         description: Invalid or expired OTP
+ *       500:
+ *         description: Server error
+ */
+router.post('/verify-otp', verifyOtp);
+
+/**
+ * @swagger
+ * /api/auth/resend-otp:
+ *   post:
+ *     summary: Resend OTP for user registration
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: integer
+ *                 example: 1
+ *     responses:
+ *       200:
+ *         description: OTP resent to email
+ *       400:
+ *         description: User not found or already verified
+ *       500:
+ *         description: Server error
+ */
+router.post('/resend-otp', resendOtp);
+
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Login a user
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
  *             properties:
  *               email:
  *                 type: string
- *                 example: john@example.com
+ *                 example: user@example.com
  *               password:
  *                 type: string
- *                 example: password123
+ *                 example: Password123
  *     responses:
  *       200:
  *         description: Login successful
@@ -77,7 +126,8 @@ router.post('/register', register);
  *             schema:
  *               type: object
  *               properties:
- *                 token: { type: string }
+ *                 token:
+ *                   type: string
  *                 user:
  *                   type: object
  *                   properties:
@@ -87,6 +137,10 @@ router.post('/register', register);
  *                     role: { type: string }
  *       401:
  *         description: Invalid credentials
+ *       403:
+ *         description: Account not verified
+ *       500:
+ *         description: Server error
  */
 router.post('/login', login);
 

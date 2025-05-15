@@ -71,4 +71,31 @@ const sendRejectionEmail = async (to, vehicle, slotLocation, reason) => {
   }
 };
 
-module.exports = { sendApprovalEmail, sendRejectionEmail };
+const sendOtpEmail = async (to, otpCode) => {
+  if (!process.env.NODEMAILER_EMAIL || !process.env.NODEMAILER_PASS) {
+    throw new Error('Nodemailer credentials not configured in .env');
+  }
+
+  console.log('Sending OTP email to:', to);
+  console.log('Using credentials:', process.env.NODEMAILER_EMAIL);
+  console.log('OTP code:', otpCode);
+
+  const mailOptions = {
+    from: `"Vehicle Parking System" <${process.env.NODEMAILER_EMAIL}>`,
+    to,
+    subject: 'Your OTP for Account Verification',
+    text: `Your OTP code for account verification is ${otpCode}. It is valid for 5 minutes.`,
+    html: `<p>Your OTP code for account verification is <strong>${otpCode}</strong>.</p><p>It is valid for 5 minutes.</p>`,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('OTP email sent:', info.response);
+    return info;
+  } catch (error) {
+    console.error('Error sending OTP email:', error);
+    throw error;
+  }
+};
+
+module.exports = { sendApprovalEmail, sendRejectionEmail, sendOtpEmail };
