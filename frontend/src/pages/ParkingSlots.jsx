@@ -18,10 +18,17 @@ const ParkingSlots = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [bulkForm, setBulkForm] = useState({ count: '', location: '', size: '', vehicle_type: '' });
-  const [editForm, setEditForm] = useState({ slot_number: '', location: '', size: '', vehicle_type: '', status: '' });
+  const [editForm, setEditForm] = useState({ 
+    slot_number: '', 
+    location: '', 
+    size: '', 
+    vehicle_type: '', 
+    status: '' 
+  });
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   const fetchSlots = useCallback(async () => {
     setLoading(true);
@@ -32,8 +39,10 @@ const ParkingSlots = () => {
       setMeta(response.data.meta);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to fetch parking slots');
+      console.error('Fetch error:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [page, limit, debouncedSearch]);
 
   useEffect(() => {
@@ -42,58 +51,98 @@ const ParkingSlots = () => {
 
   const handleBulkInputChange = (e) => {
     const { name, value } = e.target;
-    setBulkForm((prev) => ({ ...prev, [name]: value }));
+    setBulkForm(prev => ({ ...prev, [name]: value }));
   };
 
   const handleEditInputChange = (e) => {
     const { name, value } = e.target;
-    setEditForm((prev) => ({ ...prev, [name]: value }));
+    setEditForm(prev => ({ ...prev, [name]: value }));
   };
 
   const handleBulkSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     const { count, location, size, vehicle_type } = bulkForm;
+    
+    // Validation
     if (!count || !location || !size || !vehicle_type) {
-      alert('All fields are required');
+      setError('All fields are required');
       return;
     }
-    if (isNaN(count) || parseInt(count) <= 0) {
-      alert('Count must be a positive number');
+    
+    const countNum = parseInt(count);
+    if (isNaN(countNum)) {
+      setError('Count must be a number');
       return;
     }
-    const slots = Array.from({ length: parseInt(count) }, (_, i) => ({
-      slot_number: `S${Date.now()}-${i + 1}`,
-      location,
-      size,
-      vehicle_type,
-    }));
+    
+    if (countNum <= 0 || countNum > 100) {
+      setError('Count must be between 1 and 100');
+      return;
+    }
+
+    setIsCreating(true);
+    
     try {
+      // Generate unique slot numbers with prefix and sequence
+      const prefix = `SLOT-${Math.floor(Math.random() * 1000)}`;
+      const slots = Array.from({ length: countNum }, (_, i) => ({
+        slot_number: `${prefix}-${i + 1}`,
+        location,
+        size,
+        vehicle_type,
+        status: 'available'
+      }));
+
       await createBulkParkingSlots({ slots });
-      alert('Parking slots created');
+      
       setBulkForm({ count: '', location: '', size: '', vehicle_type: '' });
       setShowBulkModal(false);
-      fetchSlots();
+      await fetchSlots();
+      alert(`${countNum} parking slots created successfully!`);
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to create parking slots');
+      const errorMsg = err.response?.data?.error || 'Failed to create parking slots';
+      setError(errorMsg);
+      console.error('Creation error:', err);
+    } finally {
+      setIsCreating(false);
     }
   };
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     const { slot_number, location, size, vehicle_type, status } = editForm;
+    
     if (!slot_number || !location || !size || !vehicle_type || !status) {
-      alert('All fields are required');
+      setError('All fields are required');
       return;
     }
+
     try {
-      await updateParkingSlot(editId, { slot_number, location, size, vehicle_type, status });
-      alert('Parking slot updated');
-      setEditForm({ slot_number: '', location: '', size: '', vehicle_type: '', status: '' });
+      await updateParkingSlot(editId, { 
+        slot_number, 
+        location, 
+        size, 
+        vehicle_type, 
+        status 
+      });
+      
+      setEditForm({ 
+        slot_number: '', 
+        location: '', 
+        size: '', 
+        vehicle_type: '', 
+        status: '' 
+      });
       setIsEditing(false);
       setEditId(null);
-      fetchSlots();
+      await fetchSlots();
+      alert('Parking slot updated successfully!');
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to update parking slot');
+      const errorMsg = err.response?.data?.error || 'Failed to update parking slot';
+      setError(errorMsg);
+      console.error('Update error:', err);
     }
   };
 
@@ -105,25 +154,30 @@ const ParkingSlots = () => {
       vehicle_type: slot.vehicle_type,
       status: slot.status,
     });
-    setIsEditing(true);
     setEditId(slot.id);
+    setIsEditing(true);
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this parking slot?')) {
-      try {
-        await deleteParkingSlot(id);
-        alert('Parking slot deleted');
-        fetchSlots();
-      } catch (err) {
-        alert(err.response?.data?.error || 'Failed to delete parking slot');
-      }
+    if (!window.confirm('Are you sure you want to delete this parking slot?')) {
+      return;
+    }
+
+    try {
+      await deleteParkingSlot(id);
+      await fetchSlots();
+      alert('Parking slot deleted successfully!');
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Failed to delete parking slot';
+      setError(errorMsg);
+      console.error('Deletion error:', err);
     }
   };
 
   return (
     <div className="container mx-auto p-6 bg-accent min-h-screen">
       <h1 className="text-3xl font-bold text-primary mb-6">Parking Slots</h1>
+      
       <div className="mb-4 flex justify-between items-center">
         <input
           type="text"
@@ -135,107 +189,136 @@ const ParkingSlots = () => {
         <button
           onClick={() => setShowBulkModal(true)}
           className="btn-primary"
+          disabled={isCreating}
         >
-          Create Bulk Slots
+          {isCreating ? 'Creating...' : 'Create Bulk Slots'}
         </button>
       </div>
-      {error && <p className="text-red-500 mb-4">{error}</p>}
+
+      {error && <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
+        <p>{error}</p>
+      </div>}
+
       {loading ? (
-        <div className="flex justify-center">
-          <div className="animate-spin h-8 w-8 border-4 border-secondary border-t-transparent rounded-full"></div>
+        <div className="flex justify-center py-8">
+          <div className="animate-spin h-10 w-10 border-4 border-secondary border-t-transparent rounded-full"></div>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow-lg overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="bg-primary text-white">
-                <th className="p-3 text-left">ID</th>
-                <th className="p-3 text-left">Slot Number</th>
-                <th className="p-3 text-left">Location</th>
-                <th className="p-3 text-left">Size</th>
-                <th className="p-3 text-left">Vehicle Type</th>
-                <th className="p-3 text-left">Status</th>
-                <th className="p-3 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {slots.map((slot) => (
-                <tr key={slot.id} className="border-b hover:bg-accent">
-                  <td className="p-3">{slot.id}</td>
-                  <td className="p-3">{slot.slot_number}</td>
-                  <td className="p-3">{slot.location}</td>
-                  <td className="p-3">{slot.size}</td>
-                  <td className="p-3">{slot.vehicle_type}</td>
-                  <td className="p-3">
-                    {slot.status === 'unavailable' ? (
-                      <span className="text-red-500">Occupied</span>
-                    ) : (
-                      <span className="text-green-500">Available</span>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEdit(slot)}
-                        className="btn-warning px-3 py-1"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(slot.id)}
-                        className="btn-danger px-3 py-1"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
+        <>
+          <div className="bg-white rounded-lg shadow-lg overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-primary">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Slot Number</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Location</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Size</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Vehicle Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {slots.length > 0 ? (
+                  slots.map((slot) => (
+                    <tr key={slot.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{slot.id}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{slot.slot_number}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{slot.location}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{slot.size}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{slot.vehicle_type}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                          ${slot.status === 'available' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {slot.status === 'available' ? 'Available' : 'Occupied'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleEdit(slot)}
+                            className="text-indigo-600 hover:text-indigo-900"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(slot.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
+                      No parking slots found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          
+          <Pagination meta={meta} setPage={setPage} />
+        </>
       )}
+
+      {/* Bulk Create Modal */}
       {showBulkModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
             <h2 className="text-xl font-bold text-primary mb-4">Create Bulk Parking Slots</h2>
+            
+            {error && <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
+              <p>{error}</p>
+            </div>}
+            
             <form onSubmit={handleBulkSubmit}>
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2" htmlFor="count">
-                  Number of Slots
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="count">
+                  Number of Slots (1-100)
                 </label>
                 <input
                   type="number"
+                  id="count"
                   name="count"
                   value={bulkForm.count}
                   onChange={handleBulkInputChange}
-                  className="input"
-                  required
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                   min="1"
+                  max="100"
+                  required
                 />
               </div>
+              
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2" htmlFor="location">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="location">
                   Location
                 </label>
                 <input
                   type="text"
+                  id="location"
                   name="location"
                   value={bulkForm.location}
                   onChange={handleBulkInputChange}
-                  className="input"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                   required
                 />
               </div>
+              
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2" htmlFor="size">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="size">
                   Size
                 </label>
                 <select
+                  id="size"
                   name="size"
                   value={bulkForm.size}
                   onChange={handleBulkInputChange}
-                  className="input"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                   required
                 >
                   <option value="">Select Size</option>
@@ -244,15 +327,17 @@ const ParkingSlots = () => {
                   <option value="large">Large</option>
                 </select>
               </div>
+              
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2" htmlFor="vehicle_type">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="vehicle_type">
                   Vehicle Type
                 </label>
                 <select
+                  id="vehicle_type"
                   name="vehicle_type"
                   value={bulkForm.vehicle_type}
                   onChange={handleBulkInputChange}
-                  className="input"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                   required
                 >
                   <option value="">Select Vehicle Type</option>
@@ -262,62 +347,83 @@ const ParkingSlots = () => {
                   <option value="any">Any</option>
                 </select>
               </div>
+              
               <div className="flex justify-end space-x-2">
                 <button
                   type="button"
-                  onClick={() => setShowBulkModal(false)}
-                  className="btn-secondary"
+                  onClick={() => {
+                    setShowBulkModal(false);
+                    setError('');
+                  }}
+                  className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                  disabled={isCreating}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary">
-                  Create
+                <button
+                  type="submit"
+                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                  disabled={isCreating}
+                >
+                  {isCreating ? 'Creating...' : 'Create Slots'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Edit Modal */}
       {isEditing && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-            <h2 className="text-xl font-bold text-primary mb-4">Edit Parking Slot #{editId}</h2>
+            <h2 className="text-xl font-bold text-primary mb-4">Edit Parking Slot</h2>
+            
+            {error && <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
+              <p>{error}</p>
+            </div>}
+            
             <form onSubmit={handleEditSubmit}>
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2" htmlFor="slot_number">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="edit-slot_number">
                   Slot Number
                 </label>
                 <input
                   type="text"
+                  id="edit-slot_number"
                   name="slot_number"
                   value={editForm.slot_number}
                   onChange={handleEditInputChange}
-                  className="input"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                   required
                 />
               </div>
+              
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2" htmlFor="location">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="edit-location">
                   Location
                 </label>
                 <input
                   type="text"
+                  id="edit-location"
                   name="location"
                   value={editForm.location}
                   onChange={handleEditInputChange}
-                  className="input"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                   required
                 />
               </div>
+              
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2" htmlFor="size">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="edit-size">
                   Size
                 </label>
                 <select
+                  id="edit-size"
                   name="size"
                   value={editForm.size}
                   onChange={handleEditInputChange}
-                  className="input"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                   required
                 >
                   <option value="">Select Size</option>
@@ -326,15 +432,17 @@ const ParkingSlots = () => {
                   <option value="large">Large</option>
                 </select>
               </div>
+              
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2" htmlFor="vehicle_type">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="edit-vehicle_type">
                   Vehicle Type
                 </label>
                 <select
+                  id="edit-vehicle_type"
                   name="vehicle_type"
                   value={editForm.vehicle_type}
                   onChange={handleEditInputChange}
-                  className="input"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                   required
                 >
                   <option value="">Select Vehicle Type</option>
@@ -344,15 +452,17 @@ const ParkingSlots = () => {
                   <option value="any">Any</option>
                 </select>
               </div>
+              
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2" htmlFor="status">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="edit-status">
                   Status
                 </label>
                 <select
+                  id="edit-status"
                   name="status"
                   value={editForm.status}
                   onChange={handleEditInputChange}
-                  className="input"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                   required
                 >
                   <option value="">Select Status</option>
@@ -360,27 +470,30 @@ const ParkingSlots = () => {
                   <option value="unavailable">Occupied</option>
                 </select>
               </div>
+              
               <div className="flex justify-end space-x-2">
                 <button
                   type="button"
                   onClick={() => {
-                    setEditForm({ slot_number: '', location: '', size: '', vehicle_type: '', status: '' });
                     setIsEditing(false);
                     setEditId(null);
+                    setError('');
                   }}
-                  className="btn-secondary"
+                  className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary">
-                  Update
+                <button
+                  type="submit"
+                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                >
+                  Update Slot
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-      <Pagination meta={meta} setPage={setPage} />
     </div>
   );
 };

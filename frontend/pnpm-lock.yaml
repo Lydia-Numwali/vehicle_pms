@@ -8,12 +8,18 @@ importers:
 
   .:
     dependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4.1.6
+        version: 4.1.6
       axios:
         specifier: 1.7.7
         version: 1.7.7
       chart.js:
         specifier: 4.4.4
         version: 4.4.4
+      postcss:
+        specifier: ^8.5.3
+        version: 8.5.3
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -29,22 +35,15 @@ importers:
       react-scripts:
         specifier: 5.0.1
         version: 5.0.1(@babel/plugin-syntax-flow@7.27.1(@babel/core@7.27.1))(@babel/plugin-transform-react-jsx@7.27.1(@babel/core@7.27.1))(@types/babel__core@7.20.5)(eslint@8.57.1)(react@18.3.1)(type-fest@0.21.3)(typescript@4.9.5)
+      tailwindcss:
+        specifier: ^4.1.6
+        version: 4.1.6
       use-debounce:
         specifier: ^10.0.4
         version: 10.0.4(react@18.3.1)
       web-vitals:
         specifier: ^5.0.1
         version: 5.0.1
-    devDependencies:
-      '@tailwindcss/postcss':
-        specifier: ^4.1.6
-        version: 4.1.6
-      autoprefixer:
-        specifier: ^10.4.21
-        version: 10.4.21(postcss@8.5.3)
-      postcss:
-        specifier: ^8.5.3
-        version: 8.5.3
 
 packages:
 
