@@ -88,7 +88,7 @@ const SlotRequests = () => {
       <div className="mb-4">
         <input
           type="text"
-          placeholder="Search by plate number, status, or user name"
+          placeholder="Search by plate number or status"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="input w-full sm:w-1/2"
@@ -105,7 +105,6 @@ const SlotRequests = () => {
             <thead>
               <tr className="bg-primary text-white">
                 <th className="p-3 text-left">ID</th>
-                <th className="p-3 text-left">User</th>
                 <th className="p-3 text-left">Plate Number</th>
                 <th className="p-3 text-left">Vehicle Type</th>
                 <th className="p-3 text-left">Status</th>
@@ -116,7 +115,6 @@ const SlotRequests = () => {
               {requests.map((req) => (
                 <tr key={req.id} className="border-b hover:bg-accent">
                   <td className="p-3">{req.id}</td>
-                  <td className="p-3">{req.name || 'N/A'}</td>
                   <td className="p-3">{req.plate_number}</td>
                   <td className="p-3 capitalize">{req.vehicle_type}</td>
                   <td className="p-3">{getStatusBadge(req.request_status)}</td>
@@ -139,7 +137,7 @@ const SlotRequests = () => {
                     ) : (
                       <button
                         onClick={() => handleViewDetails(req)}
-                        className="btn-info px-3 py-1"
+                        className="px-3 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors"
                       >
                         View Details
                       </button>
@@ -193,10 +191,6 @@ const SlotRequests = () => {
             </h2>
             <div className="space-y-3">
               <div>
-                <p className="font-semibold">User:</p>
-                <p>{selectedRequestDetails.name || 'N/A'}</p>
-              </div>
-              <div>
                 <p className="font-semibold">Plate Number:</p>
                 <p>{selectedRequestDetails.plate_number}</p>
               </div>
@@ -212,6 +206,12 @@ const SlotRequests = () => {
                 <div>
                   <p className="font-semibold">Rejection Reason:</p>
                   <p>{selectedRequestDetails.rejection_reason}</p>
+                </div>
+              )}
+              {selectedRequestDetails.request_status.toLowerCase() === 'approved' && selectedRequestDetails.slot && (
+                <div>
+                  <p className="font-semibold">Assigned Slot:</p>
+                  <p>{selectedRequestDetails.slot.slot_number}</p>
                 </div>
               )}
             </div>
