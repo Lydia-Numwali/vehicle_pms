@@ -146,3 +146,7 @@ cp .env.example .env
 ```
 pnpm start 
 ```
+
+
+
+Ohhhhh good God thank you birakunzeeee😘
