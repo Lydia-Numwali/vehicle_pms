@@ -125,4 +125,26 @@
 - Swagger documentation is available at `/api-docs`.
 
 
-## VPMS Backend
+## VPMS Frontend
+
+### Setup Instructions
+**1. Navigate to Frontend Directory:**
+```
+cd frontend
+```
+**2. Install Dependencies:**
+```
+pnpm install
+```
+Ensures React, React Router, Axios, Tailwind CSS, and other dependencies are installed.
+
+**3. Configure Environment Variables:**
+Configure Environment Variables:
+```
+cp .env.example .env
+
+```
+**3. Run frontend:**
+```
+pnpm start 
+```
