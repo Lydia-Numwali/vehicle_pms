@@ -147,6 +147,7 @@ cp .env.example .env
 pnpm start 
 ```
 
-
+## VPMS Design
+https://www.figma.com/design/jfBBISYTRjvlMt2SyZukIw/VPMS?node-id=0-1&p=f&t=2tQFv2s8LwNSdvyF-0
 
 Ohhhhh good God thank you birakunzeeee😘
