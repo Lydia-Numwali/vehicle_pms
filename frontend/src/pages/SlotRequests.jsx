@@ -14,6 +14,7 @@ const SlotRequests = () => {
   const [error, setError] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [selectedRequestId, setSelectedRequestId] = useState(null);
+  const [selectedRequestDetails, setSelectedRequestDetails] = useState(null);
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
@@ -58,6 +59,29 @@ const SlotRequests = () => {
     }
   };
 
+  const getStatusBadge = (status) => {
+    const baseClasses = 'px-3 py-1 rounded-full text-sm font-medium';
+    
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return <span className={`${baseClasses} bg-green-100 text-green-800`}>Approved</span>;
+      case 'rejected':
+        return <span className={`${baseClasses} bg-red-100 text-red-800`}>Rejected</span>;
+      case 'pending':
+        return <span className={`${baseClasses} bg-yellow-100 text-yellow-800`}>Pending</span>;
+      default:
+        return <span className={`${baseClasses} bg-gray-100 text-gray-800`}>{status}</span>;
+    }
+  };
+
+  const handleViewDetails = (request) => {
+    setSelectedRequestDetails(request);
+  };
+
+  const closeDetailsModal = () => {
+    setSelectedRequestDetails(null);
+  };
+
   return (
     <div className="container mx-auto p-6 bg-accent min-h-screen">
       <h1 className="text-3xl font-bold text-primary mb-6">Slot Requests</h1>
@@ -94,10 +118,10 @@ const SlotRequests = () => {
                   <td className="p-3">{req.id}</td>
                   <td className="p-3">{req.name || 'N/A'}</td>
                   <td className="p-3">{req.plate_number}</td>
-                  <td className="p-3">{req.vehicle_type}</td>
-                  <td className="p-3 capitalize">{req.request_status}</td>
+                  <td className="p-3 capitalize">{req.vehicle_type}</td>
+                  <td className="p-3">{getStatusBadge(req.request_status)}</td>
                   <td className="p-3">
-                    {req.request_status === 'pending' && (
+                    {req.request_status.toLowerCase() === 'pending' ? (
                       <div className="flex space-x-2">
                         <button
                           onClick={() => handleApprove(req.id)}
@@ -112,6 +136,13 @@ const SlotRequests = () => {
                           Reject
                         </button>
                       </div>
+                    ) : (
+                      <button
+                        onClick={() => handleViewDetails(req)}
+                        className="btn-info px-3 py-1"
+                      >
+                        View Details
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -120,6 +151,8 @@ const SlotRequests = () => {
           </table>
         </div>
       )}
+
+      {/* Reject Request Modal */}
       {selectedRequestId && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
@@ -150,6 +183,50 @@ const SlotRequests = () => {
           </div>
         </div>
       )}
+
+      {/* View Details Modal */}
+      {selectedRequestDetails && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h2 className="text-xl font-bold text-primary mb-4">
+              Request Details #{selectedRequestDetails.id}
+            </h2>
+            <div className="space-y-3">
+              <div>
+                <p className="font-semibold">User:</p>
+                <p>{selectedRequestDetails.name || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="font-semibold">Plate Number:</p>
+                <p>{selectedRequestDetails.plate_number}</p>
+              </div>
+              <div>
+                <p className="font-semibold">Vehicle Type:</p>
+                <p className="capitalize">{selectedRequestDetails.vehicle_type}</p>
+              </div>
+              <div>
+                <p className="font-semibold">Status:</p>
+                {getStatusBadge(selectedRequestDetails.request_status)}
+              </div>
+              {selectedRequestDetails.request_status.toLowerCase() === 'rejected' && selectedRequestDetails.rejection_reason && (
+                <div>
+                  <p className="font-semibold">Rejection Reason:</p>
+                  <p>{selectedRequestDetails.rejection_reason}</p>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={closeDetailsModal}
+                className="btn-secondary"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Pagination meta={meta} setPage={setPage} />
     </div>
   );
