@@ -17,8 +17,8 @@ const ParkingSlots = () => {
   const [limit] = useState(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [bulkForm, setBulkForm] = useState({ count: '', location: '', size: '' });
-  const [editForm, setEditForm] = useState({ slot_number: '', location: '', size: '', is_occupied: false });
+  const [bulkForm, setBulkForm] = useState({ count: '', location: '', size: '', vehicle_type: '' });
+  const [editForm, setEditForm] = useState({ slot_number: '', location: '', size: '', vehicle_type: '', status: '' });
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -46,24 +46,31 @@ const ParkingSlots = () => {
   };
 
   const handleEditInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setEditForm((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
+    const { name, value } = e.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleBulkSubmit = async (e) => {
     e.preventDefault();
-    const { count, location, size } = bulkForm;
-    if (!count || !location || !size) {
+    const { count, location, size, vehicle_type } = bulkForm;
+    if (!count || !location || !size || !vehicle_type) {
       alert('All fields are required');
       return;
     }
+    if (isNaN(count) || parseInt(count) <= 0) {
+      alert('Count must be a positive number');
+      return;
+    }
+    const slots = Array.from({ length: parseInt(count) }, (_, i) => ({
+      slot_number: `S${Date.now()}-${i + 1}`,
+      location,
+      size,
+      vehicle_type,
+    }));
     try {
-      await createBulkParkingSlots({ count: parseInt(count), location, size });
+      await createBulkParkingSlots({ slots });
       alert('Parking slots created');
-      setBulkForm({ count: '', location: '', size: '' });
+      setBulkForm({ count: '', location: '', size: '', vehicle_type: '' });
       setShowBulkModal(false);
       fetchSlots();
     } catch (err) {
@@ -73,10 +80,15 @@ const ParkingSlots = () => {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+    const { slot_number, location, size, vehicle_type, status } = editForm;
+    if (!slot_number || !location || !size || !vehicle_type || !status) {
+      alert('All fields are required');
+      return;
+    }
     try {
-      await updateParkingSlot(editId, editForm);
+      await updateParkingSlot(editId, { slot_number, location, size, vehicle_type, status });
       alert('Parking slot updated');
-      setEditForm({ slot_number: '', location: '', size: '', is_occupied: false });
+      setEditForm({ slot_number: '', location: '', size: '', vehicle_type: '', status: '' });
       setIsEditing(false);
       setEditId(null);
       fetchSlots();
@@ -90,7 +102,8 @@ const ParkingSlots = () => {
       slot_number: slot.slot_number,
       location: slot.location,
       size: slot.size,
-      is_occupied: slot.is_occupied,
+      vehicle_type: slot.vehicle_type,
+      status: slot.status,
     });
     setIsEditing(true);
     setEditId(slot.id);
@@ -114,7 +127,7 @@ const ParkingSlots = () => {
       <div className="mb-4 flex justify-between items-center">
         <input
           type="text"
-          placeholder="Search by slot number or location"
+          placeholder="Search by slot number, vehicle type, or location"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="input w-full sm:w-1/2"
@@ -140,7 +153,8 @@ const ParkingSlots = () => {
                 <th className="p-3 text-left">Slot Number</th>
                 <th className="p-3 text-left">Location</th>
                 <th className="p-3 text-left">Size</th>
-                <th className="p-3 text-left">Occupied</th>
+                <th className="p-3 text-left">Vehicle Type</th>
+                <th className="p-3 text-left">Status</th>
                 <th className="p-3 text-left">Actions</th>
               </tr>
             </thead>
@@ -151,7 +165,14 @@ const ParkingSlots = () => {
                   <td className="p-3">{slot.slot_number}</td>
                   <td className="p-3">{slot.location}</td>
                   <td className="p-3">{slot.size}</td>
-                  <td className="p-3">{slot.is_occupied ? 'Yes' : 'No'}</td>
+                  <td className="p-3">{slot.vehicle_type}</td>
+                  <td className="p-3">
+                    {slot.status === 'unavailable' ? (
+                      <span className="text-red-500">Occupied</span>
+                    ) : (
+                      <span className="text-green-500">Available</span>
+                    )}
+                  </td>
                   <td className="p-3">
                     <div className="flex space-x-2">
                       <button
@@ -184,12 +205,13 @@ const ParkingSlots = () => {
                   Number of Slots
                 </label>
                 <input
-                  type="text"
+                  type="number"
                   name="count"
                   value={bulkForm.count}
                   onChange={handleBulkInputChange}
                   className="input"
                   required
+                  min="1"
                 />
               </div>
               <div className="mb-4">
@@ -220,6 +242,24 @@ const ParkingSlots = () => {
                   <option value="small">Small</option>
                   <option value="medium">Medium</option>
                   <option value="large">Large</option>
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-2" htmlFor="vehicle_type">
+                  Vehicle Type
+                </label>
+                <select
+                  name="vehicle_type"
+                  value={bulkForm.vehicle_type}
+                  onChange={handleBulkInputChange}
+                  className="input"
+                  required
+                >
+                  <option value="">Select Vehicle Type</option>
+                  <option value="car">Car</option>
+                  <option value="taxi">Taxi</option>
+                  <option value="truck">Truck</option>
+                  <option value="any">Any</option>
                 </select>
               </div>
               <div className="flex justify-end space-x-2">
@@ -286,23 +326,45 @@ const ParkingSlots = () => {
                   <option value="large">Large</option>
                 </select>
               </div>
-              <div className="mb-4 flex items-center">
-                <label className="text-gray-700 mr-2" htmlFor="is_occupied">
-                  Occupied
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-2" htmlFor="vehicle_type">
+                  Vehicle Type
                 </label>
-                <input
-                  type="checkbox"
-                  name="is_occupied"
-                  checked={editForm.is_occupied}
+                <select
+                  name="vehicle_type"
+                  value={editForm.vehicle_type}
                   onChange={handleEditInputChange}
-                  className="h-5 w-5"
-                />
+                  className="input"
+                  required
+                >
+                  <option value="">Select Vehicle Type</option>
+                  <option value="car">Car</option>
+                  <option value="taxi">Taxi</option>
+                  <option value="truck">Truck</option>
+                  <option value="any">Any</option>
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-2" htmlFor="status">
+                  Status
+                </label>
+                <select
+                  name="status"
+                  value={editForm.status}
+                  onChange={handleEditInputChange}
+                  className="input"
+                  required
+                >
+                  <option value="">Select Status</option>
+                  <option value="available">Available</option>
+                  <option value="unavailable">Occupied</option>
+                </select>
               </div>
               <div className="flex justify-end space-x-2">
                 <button
                   type="button"
                   onClick={() => {
-                    setEditForm({ slot_number: '', location: '', size: '', is_occupied: false });
+                    setEditForm({ slot_number: '', location: '', size: '', vehicle_type: '', status: '' });
                     setIsEditing(false);
                     setEditId(null);
                   }}
