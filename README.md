@@ -1,7 +1,5 @@
 # Vehicle Parking Management System
 
-**logic behing** https://docs.google.com/document/d/1Yrze_Xae5kayjPDFK7JNiUP-s_3tgLYHjQJm9rfyZIg/edit?tab=t.0
-
 ## VPMS Backend
 
 ### Setup Instructions
