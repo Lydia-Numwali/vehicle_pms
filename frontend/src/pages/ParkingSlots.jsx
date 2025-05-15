@@ -184,7 +184,7 @@ const ParkingSlots = () => {
                   Number of Slots
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   name="count"
                   value={bulkForm.count}
                   onChange={handleBulkInputChange}
