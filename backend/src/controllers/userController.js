@@ -59,7 +59,7 @@ const updateProfile = async (req, res) => {
 
 const getUsers = async (req, res) => {
   const { page = 1, limit = 10, search = '' } = req.query;
-  const offset = (page - 1) * limit;
+  const offset = (page - 1) * limit;  
   try {
     const searchQuery = `%${search}%`;
     const countResult = await pool.query(

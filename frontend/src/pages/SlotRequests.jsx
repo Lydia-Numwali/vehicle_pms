@@ -11,6 +11,7 @@ const SlotRequests = () => {
   const [error, setError] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [selectedRequestId, setSelectedRequestId] = useState(null);
+  const [selectedRequestDetails, setSelectedRequestDetails] = useState(null);
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -55,6 +56,27 @@ const SlotRequests = () => {
     }
   };
 
+  const handleViewDetails = (request) => {
+    setSelectedRequestDetails(request);
+  };
+
+  const closeDetailsModal = () => {
+    setSelectedRequestDetails(null);
+  };
+
+  const getStatusColor = (status) => {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return 'bg-green-100 text-green-800';
+      case 'rejected':
+        return 'bg-red-100 text-red-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold text-primary mb-4">Slot Requests</h1>
@@ -88,9 +110,13 @@ const SlotRequests = () => {
                   <td className="p-2">{req.id}</td>
                   <td className="p-2">{req.plate_number}</td>
                   <td className="p-2">{req.vehicle_type}</td>
-                  <td className="p-2">{req.request_status}</td>
                   <td className="p-2">
-                    {req.request_status === 'pending' && (
+                    <span className={`px-2 py-1 rounded-full text-sm font-medium ${getStatusColor(req.request_status)}`}>
+                      {req.request_status}
+                    </span>
+                  </td>
+                  <td className="p-2">
+                    {req.request_status.toLowerCase() === 'pending' ? (
                       <div className="flex space-x-2">
                         <button
                           onClick={() => handleApprove(req.id)}
@@ -105,6 +131,13 @@ const SlotRequests = () => {
                           Reject
                         </button>
                       </div>
+                    ) : (
+                      <button
+                        onClick={() => handleViewDetails(req)}
+                        className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                      >
+                        View Details
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -113,6 +146,8 @@ const SlotRequests = () => {
           </table>
         </div>
       )}
+
+      {/* Rejection Modal */}
       {selectedRequestId && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
@@ -146,6 +181,42 @@ const SlotRequests = () => {
           </div>
         </div>
       )}
+
+      {/* Details Modal */}
+      {selectedRequestDetails && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h2 className="text-xl font-bold text-primary mb-4">
+              Request Details #{selectedRequestDetails.id}
+            </h2>
+            <div className="space-y-2">
+              <p><span className="font-semibold">Plate Number:</span> {selectedRequestDetails.plate_number}</p>
+              <p><span className="font-semibold">Vehicle Type:</span> {selectedRequestDetails.vehicle_type}</p>
+              <p><span className="font-semibold">Status:</span> 
+                <span className={`ml-2 px-2 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedRequestDetails.request_status)}`}>
+                  {selectedRequestDetails.request_status}
+                </span>
+              </p>
+              {selectedRequestDetails.request_status.toLowerCase() === 'rejected' && selectedRequestDetails.rejection_reason && (
+                <p><span className="font-semibold">Rejection Reason:</span> {selectedRequestDetails.rejection_reason}</p>
+              )}
+              {selectedRequestDetails.request_status.toLowerCase() === 'approved' && selectedRequestDetails.slot && (
+                <p><span className="font-semibold">Assigned Slot:</span> {selectedRequestDetails.slot.slot_number}</p>
+              )}
+              <p><span className="font-semibold">Created At:</span> {new Date(selectedRequestDetails.created_at).toLocaleString()}</p>
+            </div>
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={closeDetailsModal}
+                className="bg-primary text-white px-4 py-2 rounded hover:bg-primary-dark"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between mt-4">
         <button
           onClick={() => setPage((p) => Math.max(p - 1, 1))}
