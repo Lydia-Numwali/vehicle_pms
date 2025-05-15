@@ -1,5 +1,6 @@
 const express = require('express');
 const { register, login, verifyOtp, resendOtp } = require('../controllers/authController');
+const validateUser  = require('../middleware/validateUser')
 
 const router = express.Router();
 
@@ -42,7 +43,7 @@ const router = express.Router();
  *       500:
  *         description: Server error
  */
-router.post('/register', register);
+router.post('/register', validateUser, register);
 
 /**
  * @swagger
